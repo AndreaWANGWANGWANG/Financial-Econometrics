@@ -1,0 +1,239 @@
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%
+%  This is sample program for getting the Transition Density of SDE
+%  
+%  Important !!! The program is coded according to AitSahalis paper
+%                and NOT the lecture notes.  The lecture notes 
+%                method also works.
+%   
+
+
+
+
+
+%%% A function to generate Hermite using a loop  %%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+function [temp]=Hermite(k)
+% This function computes the Hermite Polynomial Recursively
+% Store this function in M-file Hermite.m
+% Note Hermite(1)=1
+
+syms z
+
+H{1}=sym('1');
+% H{1}=simplify(z*H0-diff(H0,z));
+for n=2:k
+    H{n}=simplify(z*H{n-1}-diff(H{n-1},z));
+end
+temp=H{k}
+
+%%%% Easy way for Hermite  %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%global z
+%syms z
+%H0=sym('1')
+%H1=simplify(z*H0-diff(H0,z))
+%H2=simplify(z*H1-diff(H1,z))
+%H3=simplify(z*H2-diff(H2,z))
+%H4=simplify(z*H3-diff(H3,z))
+%H5=simplify(z*H4-diff(H4,z))
+%H6=simplify(z*H5-diff(H5,z))
+%H7=simplify(z*H6-diff(H6,z))
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+%%%%% The Main Program  %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+maple restart
+
+
+%%%%% Testing Hermite function %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+Hermite(2)
+Hermite(3)
+
+%%%% Variables in X(t), Y(t), Z(t) %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%global xs ys zs pX pY pZ 
+syms a  b  c
+syms xs ys zs
+syms x  y  z
+syms h t s 
+ 
+
+K=5
+J=6
+
+%%%%% Drift and Diffusion for X(t) %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+% Vasicek%%%%%%%%%%%%%%%%%%%%%%%%%
+
+muX=a*(b-x)
+sigmaX=c
+
+%sigmaX=c*sqrt(x)
+
+% Black Scholes%%%%%%%%%%%%%%%%%%%%
+% muX=a*x
+% sigmaX=b*x
+
+%%%%% Transformation X(t) to Y(t)  %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+fX2Y=int(1/sigmaX,x)
+%  simplify(finverse(fX2Y))
+
+
+fY2X=subs((finverse(fX2Y)), x,y)
+
+%%%%%  Drift and Diffusion for Y(t) %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+muY_temp=muX/sigmaX-sym('1')/sym('2')*diff(sigmaX,x,1)
+muY=subs(muY_temp, x, fY2X)
+muY=simple(muY)
+
+sigmaY=sym('1')
+
+
+%%%%%%  Transformation Y(t) to Z(t) %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+fY2Z=h^(-1/2)*(y-ys)
+%   subs(fY2Z, y,ys)
+
+fZ2Y=h^(1/2)*z+ys
+%   subs(fZ2Y, z,zs)
+
+
+%%%%%%% Alternative Program for Transfomation %%%%%%%%%%%%%%%%%%%%
+%function [temp]=fX2Y(x)
+%temp=int(1/sigmaX,x)
+%end
+%function [temp]=fY2X(y)
+%subs((finverse(fX2Y)), x,y)
+%end
+%
+%
+%function [temp]=fY2Z(y)
+%temp=(y-ys)/sqrt(h)
+%end
+%
+%function [temp]=fZ2Y(z)
+%temp=sqrt(h)*z + ys
+%end
+%
+%%% density link
+%zs=simple(subs(fY2Z, y, ys))
+%ys=simple(subs(fX2Y, x, xs))
+%
+% note the sequence is important
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+
+%%%% Testing symbolic loop   %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+%syms z
+%Temp=sym('1')
+%for n=1:10
+%Temp=Temp+z^n
+%end
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+
+%%%%% Generating Beta   %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+
+syms Htemp Expectation Beta  
+clear Beta Htemp Expectation  
+
+for n=1:K
+     HTemp=subs(Hermite(n), z, fY2Z)
+     Expectation=HTemp
+
+     for k=1:J 
+       HTemp=muY*diff(HTemp,y,1)+sym('1')/sym('2')*diff(HTemp, y, 2)
+       Expectation=Expectation + h^k/factorial(k)*HTemp
+     end
+     Beta{n}= sym('1')/factorial(n-1) * subs(Expectation, y, ys)
+end
+
+% simplify syms constant will cause error
+% Note: beta is reserved word !!!
+% subs(Beta{3}, {a,b,c,h,ys},{1,1,2,1/250,1})
+
+%%%%% Geberating pZ With Loop %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+pZ=sym('0')
+
+for m=1:K
+  pZ=pZ+Beta{m}*Hermite(m)
+end
+findsym(pZ)
+
+%%%%% Generating pZ without loop %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%
+%pZ=Beta{1}*Hermite(1)+Beta{2}*Hermite(2)+Beta{3}*Hermite(3)+Beta{4}*Hermite(4)+Beta{5}*Hermite(5) 
+%subs(Beta{5}, {a,b,c,h,ys},{1,1,2,1/250,1})
+%
+%
+%
+%
+%%%%% Generating pY pX %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+pZ=exp(-z^2/2)/sqrt(2*pi)*pZ
+pY=(h^(-1/2))*subs(pZ, z, fY2Z)
+pX=(sigmaX^(-1))*subs(pY, y, fX2Y)
+pX=subs(pX, ys, subs(fX2Y, x, xs)) 
+pX=simplify(pX)
+
+ 
+%%%%% ploting  pX   %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%subs: substitute
+g1=subs(pX, {a,b,c,h,xs}, {1,1,2,1/250,1})
+ezplot(g1)
+%ezplot(log(g1), [0, 2])
+
+
+% Note need better ploting function
+%
+%
+%
+%%%%%% Ploting EXact Density for Vasicek %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+gamm=sigmaX*sqrt(1-exp(-2*a*h))
+
+density=(pi*gamm^2/a)^(-1/2)*exp( -(x-b-(xs-b)*exp(-a*h))^2 *a/(gamm^2) )
+g2=subs(density, {a,b,c,h,xs},{1,1,2,1/250,1})
+g2=simple(g2)
+ezplot(g2)
+
+%%%%%% Plot Density Difference   %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+gDiff=g1-g2
+ezplot(gDiff, [0,2])
+% ezplot(log(gDiff))
+
+
+int(gDiff, [-1, 2])
+
+
+%%%%% Exact Density for Black Schoes %%%%%%%%%%%%%%%%%%%%%%%%%%%%
+muX=a*x
+sigmaX=b*x
+
+densityBS=(sym('1')/sqrt(2*pi*b^2*h)/x)*exp(-(log(x)-log(xs)-(a-b^2)/2*h)^2/(2*b^2*h))
+findsym(densityBS)
+g3=subs(densityBS, {a,b,h,xs},{1,1,1/250,2})
+ezplot(g3, [0.5,3])
+solve(g3)
+
+
+%%%%%%Issues to think about %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+0. how to clear work space in Matlab
+1. get black scholes density
+1. do Taylor
+2. how to plot, specify scale
+3. how to find maximium
+4. How to covert sympoblic to double expression
+5. numerical intetration
+
+
+
+ 
+
+
